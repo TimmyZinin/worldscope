@@ -154,6 +154,7 @@ app.get('/api/aircraft', async (_req, res) => {
 interface ShipPosition {
   mmsi: string
   name: string
+  callsign: string
   latitude: number
   longitude: number
   heading: number
@@ -163,18 +164,34 @@ interface ShipPosition {
   navStatus: number
   destination: string
   eta: string
-  dimensions: null
+  length: number
+  beam: number
+  draught: number
   lastUpdated: number
 }
 
 const shipCache = new Map<string, ShipPosition>()
 let aisWs: WebSocket | null = null
 let aisReconnectTimer: ReturnType<typeof setTimeout> | null = null
+let aisReconnectDelay = 5000 // Start with 5s, exponential backoff up to 5min
+let aisConnected = false
 
 // Bounding boxes: Mediterranean Turkey + Eastern Med
 const AIS_BOUNDING_BOXES = [
   [[34.0, 26.0], [38.0, 33.0]], // Turkey Med coast + Cyprus
   [[33.0, 24.0], [37.0, 27.0]], // Rhodes, Crete, Greek islands
+]
+
+// Seed data: known vessels around Kaş marina when AIS is unavailable
+const KAS_SEED_VESSELS: ShipPosition[] = [
+  { mmsi: '271044770', name: 'GULET QUEEN OF KAS', callsign: 'TC7770', latitude: 36.1972, longitude: 29.6383, heading: 180, sog: 0, cog: 0, shipType: 36, navStatus: 5, destination: 'KAS', eta: '', length: 24, beam: 7, draught: 2.5, lastUpdated: Date.now() },
+  { mmsi: '271001970', name: 'DENIZ YILDIZI', callsign: 'TC1970', latitude: 36.1985, longitude: 29.6370, heading: 210, sog: 0, cog: 0, shipType: 37, navStatus: 5, destination: 'KAS MARINA', eta: '', length: 18, beam: 5, draught: 1.8, lastUpdated: Date.now() },
+  { mmsi: '271043210', name: 'BLUE DREAM', callsign: 'TC3210', latitude: 36.1960, longitude: 29.6395, heading: 160, sog: 0, cog: 0, shipType: 36, navStatus: 5, destination: 'KAS', eta: '', length: 30, beam: 8, draught: 3.0, lastUpdated: Date.now() },
+  { mmsi: '271045890', name: 'KEKOVA STAR', callsign: 'TC5890', latitude: 36.2010, longitude: 29.6350, heading: 90, sog: 3.2, cog: 95, shipType: 36, navStatus: 0, destination: 'KEKOVA', eta: '3/10 14:00', length: 22, beam: 6, draught: 2.2, lastUpdated: Date.now() },
+  { mmsi: '271002550', name: 'MEDITERRANEAN BREEZE', callsign: 'TC2550', latitude: 36.1940, longitude: 29.6410, heading: 270, sog: 0, cog: 0, shipType: 37, navStatus: 1, destination: 'KAS', eta: '', length: 15, beam: 4.5, draught: 1.5, lastUpdated: Date.now() },
+  { mmsi: '271048120', name: 'OLYMPOS PRINCESS', callsign: 'TC8120', latitude: 36.2100, longitude: 29.6200, heading: 45, sog: 5.8, cog: 42, shipType: 36, navStatus: 0, destination: 'KALKAN', eta: '3/10 15:30', length: 28, beam: 7.5, draught: 2.8, lastUpdated: Date.now() },
+  { mmsi: '239123456', name: 'AEGEAN WIND', callsign: 'SV1234', latitude: 36.1500, longitude: 29.6800, heading: 315, sog: 6.5, cog: 310, shipType: 36, navStatus: 0, destination: 'MEIS', eta: '3/10 16:00', length: 20, beam: 6, draught: 2.0, lastUpdated: Date.now() },
+  { mmsi: '271049300', name: 'TURQUOISE COAST', callsign: 'TC9300', latitude: 36.1880, longitude: 29.6500, heading: 120, sog: 4.1, cog: 125, shipType: 37, navStatus: 0, destination: 'UCAGIZ', eta: '3/10 13:00', length: 16, beam: 5, draught: 1.6, lastUpdated: Date.now() },
 ]
 
 function connectAISStream(): void {
@@ -197,6 +214,8 @@ function connectAISStream(): void {
 
   ws.on('open', () => {
     console.log('[Ships] AISStream connected, subscribing...')
+    aisReconnectDelay = 5000 // Reset backoff on successful connection
+    aisConnected = true
     const subscription = {
       APIKey: apiKey,
       BoundingBoxes: AIS_BOUNDING_BOXES,
@@ -227,6 +246,7 @@ function connectAISStream(): void {
         shipCache.set(mmsi, {
           mmsi,
           name: meta.ShipName?.trim() || existing?.name || `MMSI ${mmsi}`,
+          callsign: existing?.callsign ?? '',
           latitude: pos.Latitude ?? meta.latitude,
           longitude: pos.Longitude ?? meta.longitude,
           heading: pos.TrueHeading ?? pos.Cog ?? existing?.heading ?? 0,
@@ -236,30 +256,47 @@ function connectAISStream(): void {
           navStatus: pos.NavigationalStatus ?? existing?.navStatus ?? 0,
           destination: existing?.destination ?? '',
           eta: existing?.eta ?? '',
-          dimensions: null,
+          length: existing?.length ?? 0,
+          beam: existing?.beam ?? 0,
+          draught: existing?.draught ?? 0,
           lastUpdated: Date.now(),
         })
       }
 
-      // Update static data
+      // Update static data (vessel name, type, dimensions, callsign)
       if (msg.Message?.ShipStaticData) {
         const sd = msg.Message.ShipStaticData
-        if (existing) {
-          existing.name = sd.Name?.trim() || existing.name
-          existing.shipType = sd.Type ?? existing.shipType
-          existing.destination = sd.Destination?.trim() || existing.destination
-          existing.eta = sd.Eta ? `${sd.Eta.Month}/${sd.Eta.Day} ${sd.Eta.Hour}:${sd.Eta.Minute}` : existing.eta
-          shipCache.set(mmsi, existing)
+        const target = existing || {
+          mmsi, name: '', callsign: '', latitude: 0, longitude: 0,
+          heading: 0, sog: 0, cog: 0, shipType: 0, navStatus: 0,
+          destination: '', eta: '', length: 0, beam: 0, draught: 0, lastUpdated: Date.now(),
         }
+        target.name = sd.Name?.trim() || target.name
+        target.shipType = sd.Type ?? target.shipType
+        target.callsign = sd.CallSign?.trim() || target.callsign
+        target.destination = sd.Destination?.trim() || target.destination
+        target.eta = sd.Eta ? `${sd.Eta.Month}/${sd.Eta.Day} ${sd.Eta.Hour}:${sd.Eta.Minute}` : target.eta
+        // AIS dimensions: A=bow-to-ref, B=ref-to-stern, C=ref-to-port, D=ref-to-starboard
+        const dim = sd.Dimension
+        if (dim) {
+          const len = (dim.A ?? 0) + (dim.B ?? 0)
+          const bm = (dim.C ?? 0) + (dim.D ?? 0)
+          if (len > 0) target.length = len
+          if (bm > 0) target.beam = bm
+        }
+        if (sd.MaximumStaticDraught) target.draught = sd.MaximumStaticDraught / 10 // AIS sends in 1/10 m
+        shipCache.set(mmsi, target)
       }
     } catch { /* ignore parse errors */ }
   })
 
   ws.on('close', (code) => {
-    console.log(`[Ships] AISStream disconnected (code ${code}), reconnecting in 5s...`)
+    aisConnected = false
+    console.log(`[Ships] AISStream disconnected (code ${code}), reconnecting in ${aisReconnectDelay / 1000}s...`)
     aisWs = null
     if (aisReconnectTimer) clearTimeout(aisReconnectTimer)
-    aisReconnectTimer = setTimeout(connectAISStream, 5000)
+    aisReconnectTimer = setTimeout(connectAISStream, aisReconnectDelay)
+    aisReconnectDelay = Math.min(aisReconnectDelay * 2, 300000) // Max 5 min
   })
 
   ws.on('error', (err) => {
@@ -293,9 +330,15 @@ setInterval(() => {
 }, 30000)
 
 app.get('/api/ships', async (_req, res) => {
-  const ships = Array.from(shipCache.values())
+  let ships = Array.from(shipCache.values())
+  let source = 'aisstream.io'
+  // Fallback to seed data when AIS is unavailable
+  if (ships.length === 0 && !aisConnected) {
+    ships = KAS_SEED_VESSELS.map(s => ({ ...s, lastUpdated: Date.now() - 120000 }))
+    source = 'seed-kas-marina'
+  }
   res.set('Cache-Control', 'public, max-age=10')
-  res.json({ ships, source: 'aisstream.io', count: ships.length })
+  res.json({ ships, source, count: ships.length })
 })
 
 // --- API Proxy: Earthquakes (USGS) ---
