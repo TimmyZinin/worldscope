@@ -74,8 +74,8 @@ export default function ObjectDetail({ entity, onClose }: Props) {
             {entity.type === 'aircraft' && entity.meta.originCountry && (
               <><MapPin size={10} /> {entity.meta.originCountry as string}</>
             )}
-            {entity.type === 'ship' && entity.meta.shipType && (
-              <><Anchor size={10} /> {entity.meta.shipType as string}</>
+            {entity.type === 'ship' && (
+              <><Anchor size={10} /> {entity.meta.flag as string} {entity.meta.shipType as string}</>
             )}
             {entity.type === 'webcam' && entity.meta.city && (
               <><MapPin size={10} /> {entity.meta.city as string}, {entity.meta.country as string}</>
@@ -184,8 +184,15 @@ export default function ObjectDetail({ entity, onClose }: Props) {
 
         {entity.type === 'ship' && (
           <>
+            {(entity.meta.length as number) > 0 && (
+              <Row label="Size" value={`${entity.meta.length}m × ${entity.meta.beam}m`} />
+            )}
+            {(entity.meta.draught as number) > 0 && (
+              <Row label="Draught" value={`${(entity.meta.draught as number).toFixed(1)}m`} />
+            )}
             <Row label={t.speed} value={formatSpeedKnots(entity.meta.sog as number)} />
             <Row label={t.heading} value={formatHeading(entity.heading)} />
+            {entity.meta.callsign && <Row label="Callsign" value={entity.meta.callsign as string} mono />}
             {entity.meta.destination && <Row label={t.destination} value={entity.meta.destination as string} />}
             {entity.meta.eta && <Row label={t.eta} value={entity.meta.eta as string} />}
             <Row label={t.navStatus} value={entity.meta.navStatus as string} />

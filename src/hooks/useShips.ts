@@ -1,8 +1,18 @@
 import { useQuery } from '@tanstack/react-query'
-import { getShipType, NAV_STATUS } from '../types/ship'
+import { getShipType, getFlag, NAV_STATUS } from '../types/ship'
 import type { MapEntity } from '../types/common'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
+
+interface ShipAPI {
+  mmsi: string; name: string; callsign: string
+  latitude: number; longitude: number
+  heading: number; sog: number; cog: number
+  shipType: number; navStatus: number
+  destination: string; eta: string
+  length: number; beam: number; draught: number
+  lastUpdated: number
+}
 
 export function useShips(enabled: boolean) {
   return useQuery({
@@ -12,13 +22,9 @@ export function useShips(enabled: boolean) {
       if (!res.ok) return []
       const data = await res.json()
       if (!data.ships || !data.ships.length) return []
-      return data.ships.map((s: {
-        mmsi: string; name: string; latitude: number; longitude: number;
-        heading: number; sog: number; shipType: number; navStatus: number;
-        destination: string; eta: string; dimensions: { a: number; b: number; c: number; d: number } | null;
-        lastUpdated: number
-      }) => {
+      return data.ships.map((s: ShipAPI) => {
         const st = getShipType(s.shipType)
+        const flag = getFlag(s.mmsi)
         return {
           id: s.mmsi,
           type: 'ship' as const,
@@ -33,12 +39,17 @@ export function useShips(enabled: boolean) {
           color: st.color,
           meta: {
             shipType: st.name,
+            shipTypeCode: s.shipType,
             navStatus: NAV_STATUS[s.navStatus] || 'Unknown',
             destination: s.destination,
             eta: s.eta,
-            dimensions: s.dimensions,
             sog: s.sog,
             mmsi: s.mmsi,
+            callsign: s.callsign || '',
+            flag,
+            length: s.length || 0,
+            beam: s.beam || 0,
+            draught: s.draught || 0,
           },
         }
       })
