@@ -1,9 +1,9 @@
+import { useState, useEffect } from 'react'
+import type { ReactNode } from 'react'
 import type { MapEntity } from '../../types/common'
 import { useI18n } from '../../i18n'
 import { formatAltitude, formatSpeed, formatHeading, formatTimeAgo, formatSpeedKnots } from '../../utils/formatters'
 import { X, Plane, Ship, Camera, Activity, Satellite, ExternalLink, MapPin, Clock, Anchor } from 'lucide-react'
-
-import type { ReactNode } from 'react'
 
 const TYPE_ICONS: Record<string, ReactNode> = {
   aircraft: <Plane size={20} />,
@@ -36,6 +36,24 @@ interface Props {
 
 export default function ObjectDetail({ entity, onClose }: Props) {
   const { t } = useI18n()
+  const [aircraftPhoto, setAircraftPhoto] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (entity.type === 'aircraft') {
+      setAircraftPhoto(null)
+      fetch(`https://api.planespotters.net/pub/photos/hex/${entity.id}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.photos?.length > 0) {
+            const photo = data.photos[0]
+            setAircraftPhoto(photo.thumbnail_large?.src || photo.thumbnail?.src || null)
+          }
+        })
+        .catch(() => {})
+    } else {
+      setAircraftPhoto(null)
+    }
+  }, [entity.id, entity.type])
 
   return (
     <div
@@ -75,13 +93,51 @@ export default function ObjectDetail({ entity, onClose }: Props) {
         </button>
       </div>
 
-      {/* Webcam preview */}
-      {entity.type === 'webcam' && entity.meta.preview && (
+      {/* Webcam preview: image if available, iframe embed otherwise */}
+      {entity.type === 'webcam' && (
+        <div className="px-4 pt-3">
+          {entity.meta.preview ? (
+            <img
+              src={entity.meta.preview as string}
+              alt={entity.name}
+              className="w-full h-36 object-cover rounded-xl shadow-sm"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+            />
+          ) : entity.meta.playerUrl ? (
+            <div className="relative w-full h-36 rounded-xl shadow-sm overflow-hidden bg-gray-100">
+              <iframe
+                src={entity.meta.playerUrl as string}
+                className="w-full h-full border-0"
+                loading="lazy"
+                sandbox="allow-scripts allow-same-origin"
+                title={entity.name}
+              />
+              <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">LIVE</div>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* Aircraft photo from planespotters.net */}
+      {entity.type === 'aircraft' && aircraftPhoto && (
         <div className="px-4 pt-3">
           <img
-            src={entity.meta.preview as string}
+            src={aircraftPhoto}
             alt={entity.name}
-            className="w-full h-36 object-cover rounded-xl shadow-sm"
+            className="w-full h-28 object-cover rounded-xl shadow-sm"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+        </div>
+      )}
+
+      {/* Ship photo from MarineTraffic */}
+      {entity.type === 'ship' && (
+        <div className="px-4 pt-3">
+          <img
+            src={`https://photos.marinetraffic.com/ais/showphoto.aspx?mmsi=${entity.meta.mmsi || entity.id}&size=thumb300`}
+            alt={entity.name}
+            className="w-full h-28 object-cover rounded-xl shadow-sm bg-gray-100"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
           />
         </div>
       )}

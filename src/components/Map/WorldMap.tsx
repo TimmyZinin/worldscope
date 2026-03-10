@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Map, { NavigationControl, GeolocateControl, type MapRef, type ViewStateChangeEvent } from 'react-map-gl/maplibre'
 import { MapboxOverlay } from '@deck.gl/mapbox'
 import { useControl } from 'react-map-gl/maplibre'
-import { ScatterplotLayer } from '@deck.gl/layers'
+import { ScatterplotLayer, IconLayer } from '@deck.gl/layers'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useViewport } from '../../hooks/useViewport'
 import { useLayerVisibility } from '../../hooks/useLayerVisibility'
@@ -14,6 +14,39 @@ import { useWebcams } from '../../hooks/useWebcams'
 import type { MapEntity } from '../../types/common'
 
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty'
+
+// --- SVG icon factories ---
+
+function makeAircraftSvg(fill: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+    <path d="M24 4 L28 20 L44 26 L28 30 L26 44 L24 38 L22 44 L20 30 L4 26 L20 20 Z"
+      fill="${fill}" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+  </svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+function makeShipSvg(fill: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+    <path d="M24 4 L28 16 L28 28 L38 34 L36 40 L24 36 L12 40 L10 34 L20 28 L20 16 Z"
+      fill="${fill}" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+    <rect x="22" y="10" width="4" height="10" fill="white" opacity="0.6"/>
+  </svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+const WEBCAM_SVG_URL = (() => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+    <rect x="6" y="12" width="28" height="22" rx="4"
+      fill="#4CAF50" stroke="white" stroke-width="2"/>
+    <polygon points="34,16 44,10 44,38 34,32"
+      fill="#4CAF50" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="20" cy="23" r="6" fill="white" opacity="0.85"/>
+    <circle cx="20" cy="23" r="3" fill="#4CAF50"/>
+    <rect x="14" y="34" width="12" height="3" rx="1.5"
+      fill="white" opacity="0.6"/>
+  </svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+})()
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function DeckGLOverlay(props: { layers: any[] }) {
@@ -145,24 +178,25 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
 
   if (layers.aircraft && aircraft.length > 0) {
     deckLayers.push(
-      new ScatterplotLayer({
-        id: 'aircraft-layer',
+      new IconLayer({
+        id: 'aircraft-icons',
         data: aircraft,
         getPosition: (d: MapEntity) => [d.longitude, d.latitude],
-        getRadius: (d: MapEntity) => (d.meta.onGround ? 4 : 6),
-        getFillColor: (d: MapEntity) => {
-          if (d.meta.onGround) return [158, 158, 158, 200]
-          const alt = d.altitude || 0
-          if (alt > 10000) return [33, 150, 243, 230]
-          if (alt > 5000) return [255, 152, 0, 230]
-          return [76, 175, 80, 230]
-        },
-        getLineColor: [255, 255, 255, 200],
-        lineWidthMinPixels: 1.5,
-        radiusMinPixels: 4,
-        radiusMaxPixels: 10,
+        getIcon: (d: MapEntity) => ({
+          url: d.meta.onGround ? makeAircraftSvg('#9E9E9E') : makeAircraftSvg('#FF9800'),
+          width: 48,
+          height: 48,
+          anchorX: 24,
+          anchorY: 24,
+        }),
+        getSize: 28,
+        sizeScale: 1,
+        sizeMinPixels: 16,
+        sizeMaxPixels: 36,
+        billboard: true,
         updateTriggers: {
           getPosition: aircraft.map((a) => `${a.id}:${a.latitude}:${a.longitude}`).join(','),
+          getIcon: aircraft.map((a) => `${a.id}:${a.meta.onGround}`).join(','),
         },
       })
     )
@@ -170,38 +204,47 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
 
   if (layers.ships && ships.length > 0) {
     deckLayers.push(
-      new ScatterplotLayer({
-        id: 'ships-layer',
+      new IconLayer({
+        id: 'ships-icons',
         data: ships,
         getPosition: (d: MapEntity) => [d.longitude, d.latitude],
-        getRadius: 8,
-        getFillColor: (d: MapEntity) => {
-          const hex = d.color
-          const r = parseInt(hex.slice(1, 3), 16)
-          const g = parseInt(hex.slice(3, 5), 16)
-          const b = parseInt(hex.slice(5, 7), 16)
-          return [r, g, b, 220]
+        getIcon: (d: MapEntity) => ({
+          url: makeShipSvg(d.color),
+          width: 48,
+          height: 48,
+          anchorX: 24,
+          anchorY: 24,
+        }),
+        getSize: 28,
+        sizeScale: 1,
+        sizeMinPixels: 14,
+        sizeMaxPixels: 34,
+        billboard: true,
+        updateTriggers: {
+          getIcon: ships.map((s) => `${s.id}:${s.color}`).join(','),
         },
-        getLineColor: [255, 255, 255, 180],
-        lineWidthMinPixels: 1.5,
-        radiusMinPixels: 5,
-        radiusMaxPixels: 12,
       })
     )
   }
 
   if (layers.cameras && webcams.length > 0) {
     deckLayers.push(
-      new ScatterplotLayer({
-        id: 'webcams-layer',
+      new IconLayer({
+        id: 'webcams-icons',
         data: webcams,
         getPosition: (d: MapEntity) => [d.longitude, d.latitude],
-        getRadius: 5,
-        getFillColor: [76, 175, 80, 200],
-        getLineColor: [255, 255, 255, 200],
-        lineWidthMinPixels: 2,
-        radiusMinPixels: 5,
-        radiusMaxPixels: 12,
+        getIcon: () => ({
+          url: WEBCAM_SVG_URL,
+          width: 48,
+          height: 48,
+          anchorX: 24,
+          anchorY: 24,
+        }),
+        getSize: 26,
+        sizeScale: 1,
+        sizeMinPixels: 14,
+        sizeMaxPixels: 32,
+        billboard: true,
       })
     )
   }

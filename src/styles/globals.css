@@ -39,6 +39,12 @@
   animation: slide-up 0.4s ease-out;
 }
 
+/* Cursor override for map canvas */
+.maplibregl-canvas-container,
+.maplibregl-canvas {
+  cursor: pointer !important;
+}
+
 /* MapLibre overrides */
 .maplibregl-ctrl-group {
   border-radius: 12px !important;
