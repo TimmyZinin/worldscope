@@ -20,7 +20,7 @@ function getInitialViewport(): Viewport {
       pitch: 0,
     }
   }
-  return { latitude: 48, longitude: 15, zoom: 4, bearing: 0, pitch: 0 }
+  return { latitude: 36.8, longitude: 30.5, zoom: 7, bearing: 0, pitch: 0 }
 }
 
 export const useViewport = create<ViewportStore>((set, get) => ({

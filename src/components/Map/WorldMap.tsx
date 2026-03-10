@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Map, { NavigationControl, GeolocateControl, type MapRef, type ViewStateChangeEvent, type MapLayerMouseEvent } from 'react-map-gl/maplibre'
+import Map, { NavigationControl, GeolocateControl, type MapRef, type ViewStateChangeEvent } from 'react-map-gl/maplibre'
 import { MapboxOverlay } from '@deck.gl/mapbox'
 import { useControl } from 'react-map-gl/maplibre'
 import { ScatterplotLayer } from '@deck.gl/layers'
@@ -26,14 +26,12 @@ interface WorldMapProps {
   onEntityClick: (entity: MapEntity | null) => void
 }
 
-// Find nearest entity to clicked coordinates within a pixel threshold
 function findNearestEntity(
   lngLat: { lng: number; lat: number },
   entities: MapEntity[],
   zoom: number
 ): MapEntity | null {
-  // Threshold in degrees — shrinks as zoom increases
-  const threshold = 2 / Math.pow(2, zoom - 2)
+  const threshold = 8 / Math.pow(2, zoom - 2)
   let nearest: MapEntity | null = null
   let minDist = threshold
 
@@ -51,9 +49,11 @@ function findNearestEntity(
 
 export default function WorldMap({ onEntityClick }: WorldMapProps) {
   const mapRef = useRef<MapRef>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const { viewport, setViewport } = useViewport()
   const { layers, setCount } = useLayerVisibility()
   const [currentTime, setCurrentTime] = useState(Date.now())
+  const isDragging = useRef(false)
 
   const { data: aircraft = [] } = useAircraft(layers.aircraft)
   const { data: earthquakes = [] } = useEarthquakes(layers.earthquakes)
@@ -69,9 +69,8 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
     setCount('cameras', webcams.length)
   }, [aircraft.length, earthquakes.length, iss.length, ships.length, webcams.length, setCount])
 
-  // Pulse animation
   useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(Date.now()), 100)
+    const interval = setInterval(() => setCurrentTime(Date.now()), 200)
     return () => clearInterval(interval)
   }, [])
 
@@ -88,7 +87,6 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
     [setViewport]
   )
 
-  // All visible entities combined for click detection
   const allEntities = useMemo(() => {
     const all: MapEntity[] = []
     if (layers.aircraft) all.push(...aircraft)
@@ -99,18 +97,52 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
     return all
   }, [layers, aircraft, ships, webcams, earthquakes, iss])
 
-  // Handle map click — find nearest entity
-  const onMapClick = useCallback(
-    (e: MapLayerMouseEvent) => {
-      const nearest = findNearestEntity(e.lngLat, allEntities, viewport.zoom)
-      onEntityClick(nearest)
-    },
-    [allEntities, viewport.zoom, onEntityClick]
-  )
+  const entitiesRef = useRef(allEntities)
+  const zoomRef = useRef(viewport.zoom)
+  const onEntityClickRef = useRef(onEntityClick)
+  entitiesRef.current = allEntities
+  zoomRef.current = viewport.zoom
+  onEntityClickRef.current = onEntityClick
+
+  // Track mouse drag to distinguish click from pan
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onDown = () => { isDragging.current = false }
+    const onMoveEvt = () => { isDragging.current = true }
+    el.addEventListener('pointerdown', onDown)
+    el.addEventListener('pointermove', onMoveEvt)
+    return () => {
+      el.removeEventListener('pointerdown', onDown)
+      el.removeEventListener('pointermove', onMoveEvt)
+    }
+  }, [])
+
+  // Click on container — bubbles up from MapLibre canvas, doesn't block map interaction
+  const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (isDragging.current) return // ignore drag-end clicks
+    const map = mapRef.current?.getMap()
+    if (!map) return
+
+    const mapCanvas = map.getCanvas()
+    const rect = mapCanvas.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return
+
+    const lngLat = map.unproject([x, y])
+    const nearest = findNearestEntity(
+      { lng: lngLat.lng, lat: lngLat.lat },
+      entitiesRef.current,
+      zoomRef.current
+    )
+    if (nearest) {
+      onEntityClickRef.current(nearest)
+    }
+  }, [])
 
   const deckLayers = []
 
-  // Aircraft layer
   if (layers.aircraft && aircraft.length > 0) {
     deckLayers.push(
       new ScatterplotLayer({
@@ -136,7 +168,6 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
     )
   }
 
-  // Ships layer
   if (layers.ships && ships.length > 0) {
     deckLayers.push(
       new ScatterplotLayer({
@@ -159,7 +190,6 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
     )
   }
 
-  // Webcams layer
   if (layers.cameras && webcams.length > 0) {
     deckLayers.push(
       new ScatterplotLayer({
@@ -176,7 +206,6 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
     )
   }
 
-  // Earthquakes layer — pulsating circles
   if (layers.earthquakes && earthquakes.length > 0) {
     const pulse = 1 + 0.3 * Math.sin(currentTime / 500)
     deckLayers.push(
@@ -205,14 +234,11 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
         lineWidthMinPixels: 2,
         radiusMinPixels: 5,
         radiusMaxPixels: 35,
-        updateTriggers: {
-          getRadius: currentTime,
-        },
+        updateTriggers: { getRadius: currentTime },
       })
     )
   }
 
-  // ISS layer — single glowing marker
   if (layers.iss && iss.length > 0) {
     const issPulse = 1 + 0.4 * Math.sin(currentTime / 300)
     deckLayers.push(
@@ -244,21 +270,25 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
   }
 
   return (
-    <Map
-      ref={mapRef}
-      {...viewport}
-      onMove={onMove}
-      onClick={onMapClick}
-      mapStyle={MAP_STYLE}
-      style={{ width: '100%', height: '100%' }}
-      attributionControl={false}
-      maxZoom={18}
-      minZoom={2}
-      cursor="pointer"
+    <div
+      ref={containerRef}
+      onClick={handleClick}
+      style={{ width: '100%', height: '100%', cursor: 'pointer' }}
     >
-      <DeckGLOverlay layers={deckLayers} />
-      <NavigationControl position="top-right" />
-      <GeolocateControl position="top-right" />
-    </Map>
+      <Map
+        ref={mapRef}
+        {...viewport}
+        onMove={onMove}
+        mapStyle={MAP_STYLE}
+        style={{ width: '100%', height: '100%' }}
+        attributionControl={false}
+        maxZoom={18}
+        minZoom={2}
+      >
+        <DeckGLOverlay layers={deckLayers} />
+        <NavigationControl position="top-right" />
+        <GeolocateControl position="top-right" />
+      </Map>
+    </div>
   )
 }

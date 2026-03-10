@@ -253,12 +253,49 @@ app.get('/api/iss', async (_req, res) => {
   }
 })
 
-// --- API Proxy: Webcams (Windy) ---
+// --- API Proxy: Webcams (Windy + static fallback) ---
+const STATIC_WEBCAMS = [
+  { webcamId: 90001, title: 'Kalkan Beach & Kelemis Bay', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 36.2635, longitude: 29.4163, city: 'Kalkan', country: 'Turkey' }, player: { day: 'https://www.geocam.ru/en/online/kalkan-beach/' } },
+  { webcamId: 90002, title: 'Kalkan Center — Şehitler Street', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 36.2640, longitude: 29.4155, city: 'Kalkan', country: 'Turkey' }, player: { day: 'https://www.geocam.ru/en/online/kalkan-sehitler-street/' } },
+  { webcamId: 90003, title: 'Fethiye — Çalış Beach', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 36.6686, longitude: 29.1053, city: 'Fethiye', country: 'Turkey' }, player: { day: 'https://www.skylinewebcams.com/en/webcam/turkey/aegean-region/fethiye/fethiye.html' } },
+  { webcamId: 90004, title: 'Fethiye — Ece Yachting Marina', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 36.6220, longitude: 29.1070, city: 'Fethiye', country: 'Turkey' }, player: { day: 'https://worldcam.eu/webcams/asia/turkey/29847-fethiye-ece-yachting' } },
+  { webcamId: 90005, title: 'Marmaris — Seaside Promenade', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 36.8517, longitude: 28.2716, city: 'Marmaris', country: 'Turkey' }, player: { day: 'https://worldcam.eu/webcams/asia/turkey/marmaris' } },
+  { webcamId: 90006, title: 'Antalya — Konyaaltı Beach', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 36.8730, longitude: 30.6370, city: 'Antalya', country: 'Turkey' }, player: { day: 'https://www.skylinewebcams.com/en/webcam/turkey.html' } },
+  { webcamId: 90007, title: 'Kemer — Tahtalı Mountain', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 36.5270, longitude: 30.4590, city: 'Kemer', country: 'Turkey' }, player: { day: 'https://worldcam.eu/webcams/asia/turkey/antalya' } },
+  { webcamId: 90008, title: 'Alanya — Cleopatra Beach', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 36.5465, longitude: 31.9780, city: 'Alanya', country: 'Turkey' }, player: { day: 'https://www.geocam.ru/en/online/alanya-cleopatra-beach/' } },
+  { webcamId: 90009, title: 'Alanya — Akhmet Tokush Boulevard', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 36.5430, longitude: 32.0010, city: 'Alanya', country: 'Turkey' }, player: { day: 'https://www.geocam.ru/en/online/alanya-akhmet-tokush-boulevard/' } },
+  { webcamId: 90010, title: 'Side — Oleander Hotel Beach', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 36.7676, longitude: 31.3930, city: 'Side', country: 'Turkey' }, player: { day: 'https://worldcam.eu/webcams/asia/turkey/antalya' } },
+  { webcamId: 90011, title: 'Kaş Harbor View', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 36.2000, longitude: 29.6400, city: 'Kaş', country: 'Turkey' }, player: { day: 'https://www.skylinewebcams.com/en/webcam/turkey.html' } },
+  { webcamId: 90012, title: 'Ölüdeniz — Blue Lagoon', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 36.5500, longitude: 29.1155, city: 'Ölüdeniz', country: 'Turkey' }, player: { day: 'https://worldcam.eu/webcams/asia/turkey' } },
+  { webcamId: 90013, title: 'Dalyan — İztuzu Beach', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 36.7820, longitude: 28.6150, city: 'Dalyan', country: 'Turkey' }, player: { day: 'https://worldcam.eu/webcams/asia/turkey' } },
+  { webcamId: 90014, title: 'Bodrum — Marina View', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 37.0347, longitude: 27.4295, city: 'Bodrum', country: 'Turkey' }, player: { day: 'https://worldcam.eu/webcams/asia/turkey' } },
+  { webcamId: 90015, title: 'Manavgat — Kamelya Collection', status: 'active', lastUpdatedOn: new Date().toISOString(), location: { latitude: 36.7650, longitude: 31.4430, city: 'Manavgat', country: 'Turkey' }, player: { day: 'https://worldcam.eu/webcams/asia/turkey/antalya' } },
+]
+
 app.get('/api/webcams', async (req, res) => {
   const windyKey = process.env.WINDY_API_KEY
-  if (!windyKey) return res.json({ webcams: [] })
+  const { north, south, east, west } = req.query
 
-  const { north, south, east, west, lat, lon, radius } = req.query
+  // Filter static webcams by bounding box
+  const filterStatic = () => {
+    if (north && south && east && west) {
+      const n = +north, s = +south, e = +east, w = +west
+      return STATIC_WEBCAMS.filter(wc =>
+        wc.location.latitude >= s && wc.location.latitude <= n &&
+        wc.location.longitude >= w && wc.location.longitude <= e
+      )
+    }
+    return STATIC_WEBCAMS
+  }
+
+  if (!windyKey) {
+    const filtered = filterStatic()
+    console.log(`[Webcams] Static fallback: ${filtered.length}/${STATIC_WEBCAMS.length} in bounds`)
+    res.set('Cache-Control', 'public, max-age=300')
+    return res.json({ webcams: filtered })
+  }
+
+  const { lat, lon, radius } = req.query
   let windyUrl = 'https://api.windy.com/webcams/api/v3/webcams?lang=en&limit=50&offset=0&include=location,images,player'
 
   if (lat && lon) {
@@ -270,11 +307,16 @@ app.get('/api/webcams', async (req, res) => {
   try {
     const response = await fetch(windyUrl, { headers: { 'X-WINDY-API-KEY': windyKey } })
     const data = await response.json()
+    // Merge Windy data with static fallback for extra coverage
+    const windyWebcams = data.webcams || []
+    const staticInBounds = filterStatic()
+    const merged = [...windyWebcams, ...staticInBounds]
     res.set('Cache-Control', 'public, max-age=300')
-    res.json(data)
+    res.json({ ...data, webcams: merged })
   } catch (e) {
-    console.error('[Webcams] Error:', e)
-    res.status(500).json({ error: 'Internal error' })
+    console.error('[Webcams] Windy error, using static fallback:', e)
+    res.set('Cache-Control', 'public, max-age=300')
+    res.json({ webcams: filterStatic() })
   }
 })
 
