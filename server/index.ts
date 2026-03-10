@@ -243,6 +243,7 @@ function connectAISStream(): void {
         const pos = msg.Message.PositionReport || msg.Message.StandardClassBPositionReport
         if (!pos || pos.Latitude === 0 && pos.Longitude === 0) return
 
+        knownMMSIs.add(mmsi) // Remember for aprs.fi fallback
         shipCache.set(mmsi, {
           mmsi,
           name: meta.ShipName?.trim() || existing?.name || `MMSI ${mmsi}`,
@@ -323,6 +324,69 @@ setInterval(() => {
 
 // Start AIS connection
 connectAISStream()
+
+// --- aprs.fi fallback polling (when AISStream is down) ---
+const knownMMSIs = new Set<string>(KAS_SEED_VESSELS.map(s => s.mmsi))
+let aprsfiFetching = false
+
+async function pollAprsfi(): Promise<void> {
+  const apiKey = process.env.APRSFI_API_KEY
+  if (!apiKey || aisConnected || aprsfiFetching) return
+  if (knownMMSIs.size === 0) return
+
+  aprsfiFetching = true
+  try {
+    // aprs.fi allows max 20 MMSIs per request
+    const mmsiList = Array.from(knownMMSIs).slice(0, 20)
+    const url = `https://api.aprs.fi/api/get?name=${mmsiList.join(',')}&what=loc&apikey=${apiKey}&format=json`
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
+    if (!res.ok) {
+      console.log(`[Ships] aprs.fi HTTP ${res.status}`)
+      return
+    }
+    const data = await res.json()
+    if (data.result !== 'ok' || !data.entries?.length) {
+      console.log(`[Ships] aprs.fi: ${data.result} — ${data.entries?.length || 0} entries`)
+      return
+    }
+
+    let updated = 0
+    for (const e of data.entries) {
+      if (!e.mmsi || !e.lat || !e.lng) continue
+      const mmsi = String(e.mmsi)
+      const existing = shipCache.get(mmsi)
+      shipCache.set(mmsi, {
+        mmsi,
+        name: e.name?.trim() || existing?.name || `MMSI ${mmsi}`,
+        callsign: e.callsign?.trim() || existing?.callsign || '',
+        latitude: parseFloat(e.lat),
+        longitude: parseFloat(e.lng),
+        heading: e.heading != null ? parseFloat(e.heading) : existing?.heading ?? 0,
+        sog: e.speed != null ? parseFloat(e.speed) : existing?.sog ?? 0,
+        cog: e.course != null ? parseFloat(e.course) : existing?.cog ?? 0,
+        shipType: existing?.shipType ?? 0,
+        navStatus: e.navstat != null ? parseInt(e.navstat) : existing?.navStatus ?? 0,
+        destination: existing?.destination ?? '',
+        eta: existing?.eta ?? '',
+        length: e.length ? parseFloat(e.length) : existing?.length ?? 0,
+        beam: e.width ? parseFloat(e.width) : existing?.beam ?? 0,
+        draught: e.draught ? parseFloat(e.draught) : existing?.draught ?? 0,
+        lastUpdated: e.lasttime ? parseInt(e.lasttime) * 1000 : Date.now(),
+      })
+      updated++
+    }
+    if (updated > 0) console.log(`[Ships] aprs.fi fallback: updated ${updated} vessels`)
+  } catch (err) {
+    console.log(`[Ships] aprs.fi error: ${(err as Error).message}`)
+  } finally {
+    aprsfiFetching = false
+  }
+}
+
+// Poll aprs.fi every 2 min when AISStream is down
+setInterval(pollAprsfi, 120000)
+// Also try immediately on startup after a delay
+setTimeout(pollAprsfi, 10000)
 
 // Log ship count periodically
 setInterval(() => {
