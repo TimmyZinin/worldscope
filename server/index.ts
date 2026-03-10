@@ -376,7 +376,8 @@ app.get('/api/webcams', async (req, res) => {
 
   if (!windyKey) {
     const filtered = filterStatic()
-    console.log(`[Webcams] Static fallback: ${filtered.length}/${STATIC_WEBCAMS.length} in bounds`)
+    // Only log when webcams are found to reduce noise
+    if (filtered.length > 0) console.log(`[Webcams] Static: ${filtered.length} in bounds`)
     res.set('Cache-Control', 'public, max-age=300')
     return res.json({ webcams: filtered })
   }
