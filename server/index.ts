@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import WebSocket from 'ws'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -149,62 +150,147 @@ app.get('/api/aircraft', async (_req, res) => {
   res.json({ states, time: Math.floor(aircraftLastFetch / 1000) })
 })
 
-// --- API Proxy: Ships (Digitraffic.fi — free AIS data) ---
-app.get('/api/ships', async (_req, res) => {
-  const cacheKey = 'ships:global'
-  const cached = getCached(cacheKey, 30000) // 30s TTL
-  if (cached) {
-    res.set('Cache-Control', 'public, max-age=15')
-    return res.json(cached)
+// --- Ships: AISStream.io WebSocket (global AIS) ---
+interface ShipPosition {
+  mmsi: string
+  name: string
+  latitude: number
+  longitude: number
+  heading: number
+  sog: number
+  cog: number
+  shipType: number
+  navStatus: number
+  destination: string
+  eta: string
+  dimensions: null
+  lastUpdated: number
+}
+
+const shipCache = new Map<string, ShipPosition>()
+let aisWs: WebSocket | null = null
+let aisReconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+// Bounding boxes: Mediterranean Turkey + Eastern Med
+const AIS_BOUNDING_BOXES = [
+  [[34.0, 26.0], [38.0, 33.0]], // Turkey Med coast + Cyprus
+  [[33.0, 24.0], [37.0, 27.0]], // Rhodes, Crete, Greek islands
+]
+
+function connectAISStream(): void {
+  const apiKey = process.env.AISSTREAM_API_KEY
+  if (!apiKey) {
+    console.log('[Ships] No AISSTREAM_API_KEY, ship tracking disabled')
+    return
   }
 
-  try {
-    // Digitraffic.fi — free Finnish/Baltic AIS feed
-    const response = await fetch('https://meri.digitraffic.fi/api/ais/v1/locations', {
-      headers: { 'Accept-Encoding': 'gzip' },
-      signal: AbortSignal.timeout(15000),
-    })
+  if (aisWs) {
+    try { aisWs.close() } catch { /* ignore */ }
+    aisWs = null
+  }
 
-    if (!response.ok) {
-      const stale = getStale(cacheKey)
-      if (stale) return res.json(stale)
-      return res.json({ ships: [] })
+  console.log('[Ships] Connecting to AISStream.io...')
+  const ws = new WebSocket('wss://stream.aisstream.io/v0/stream')
+
+  ws.on('open', () => {
+    console.log('[Ships] AISStream connected, subscribing...')
+    const subscription = {
+      APIKey: apiKey,
+      BoundingBoxes: AIS_BOUNDING_BOXES,
+      FilterMessageTypes: ['PositionReport', 'ShipStaticData', 'StandardClassBPositionReport'],
     }
+    ws.send(JSON.stringify(subscription))
+  })
 
-    const data = await response.json()
-    const features = data.features || []
+  ws.on('message', (data: WebSocket.Data) => {
+    try {
+      const msg = JSON.parse(data.toString())
+      if (msg.error) {
+        console.error('[Ships] AISStream error:', msg.error)
+        return
+      }
 
-    const ships = features
-      .filter((f: any) => f.geometry?.coordinates && f.properties?.mmsi)
-      .slice(0, 500) // Limit to 500 ships
-      .map((f: any) => {
-        const p = f.properties
-        return {
-          mmsi: String(p.mmsi),
-          name: p.name || `MMSI ${p.mmsi}`,
-          latitude: f.geometry.coordinates[1],
-          longitude: f.geometry.coordinates[0],
-          heading: p.heading ?? p.cog ?? 0,
-          sog: p.sog ?? 0,
-          shipType: p.shipType ?? 0,
-          navStatus: p.navStat ?? 0,
-          destination: '',
-          eta: '',
+      const meta = msg.MetaData || msg.Metadata
+      if (!meta || !meta.MMSI) return
+
+      const mmsi = String(meta.MMSI)
+      const existing = shipCache.get(mmsi)
+
+      // Update position from PositionReport
+      if (msg.Message?.PositionReport || msg.Message?.StandardClassBPositionReport) {
+        const pos = msg.Message.PositionReport || msg.Message.StandardClassBPositionReport
+        if (!pos || pos.Latitude === 0 && pos.Longitude === 0) return
+
+        shipCache.set(mmsi, {
+          mmsi,
+          name: meta.ShipName?.trim() || existing?.name || `MMSI ${mmsi}`,
+          latitude: pos.Latitude ?? meta.latitude,
+          longitude: pos.Longitude ?? meta.longitude,
+          heading: pos.TrueHeading ?? pos.Cog ?? existing?.heading ?? 0,
+          sog: pos.Sog ?? 0,
+          cog: pos.Cog ?? 0,
+          shipType: existing?.shipType ?? 0,
+          navStatus: pos.NavigationalStatus ?? existing?.navStatus ?? 0,
+          destination: existing?.destination ?? '',
+          eta: existing?.eta ?? '',
           dimensions: null,
-          lastUpdated: p.timestampExternal || Date.now(),
-        }
-      })
+          lastUpdated: Date.now(),
+        })
+      }
 
-    const result = { ships, source: 'digitraffic.fi', count: ships.length }
-    setCache(cacheKey, result)
-    res.set('Cache-Control', 'public, max-age=15')
-    res.json(result)
-  } catch (e) {
-    console.error('[Ships] Error:', e)
-    const stale = getStale(cacheKey)
-    if (stale) return res.json(stale)
-    res.json({ ships: [], error: 'Failed to fetch ship data' })
+      // Update static data
+      if (msg.Message?.ShipStaticData) {
+        const sd = msg.Message.ShipStaticData
+        if (existing) {
+          existing.name = sd.Name?.trim() || existing.name
+          existing.shipType = sd.Type ?? existing.shipType
+          existing.destination = sd.Destination?.trim() || existing.destination
+          existing.eta = sd.Eta ? `${sd.Eta.Month}/${sd.Eta.Day} ${sd.Eta.Hour}:${sd.Eta.Minute}` : existing.eta
+          shipCache.set(mmsi, existing)
+        }
+      }
+    } catch { /* ignore parse errors */ }
+  })
+
+  ws.on('close', () => {
+    console.log('[Ships] AISStream disconnected, reconnecting in 10s...')
+    aisWs = null
+    if (aisReconnectTimer) clearTimeout(aisReconnectTimer)
+    aisReconnectTimer = setTimeout(connectAISStream, 10000)
+  })
+
+  ws.on('error', (err) => {
+    console.error('[Ships] AISStream error:', err.message)
+  })
+
+  aisWs = ws
+}
+
+// Clean stale ships (not updated in 30 min)
+setInterval(() => {
+  const cutoff = Date.now() - 30 * 60 * 1000
+  let removed = 0
+  for (const [mmsi, ship] of shipCache) {
+    if (ship.lastUpdated < cutoff) {
+      shipCache.delete(mmsi)
+      removed++
+    }
   }
+  if (removed > 0) console.log(`[Ships] Cleaned ${removed} stale entries, active: ${shipCache.size}`)
+}, 60000)
+
+// Start AIS connection
+connectAISStream()
+
+// Log ship count periodically
+setInterval(() => {
+  if (shipCache.size > 0) console.log(`[Ships] Active vessels: ${shipCache.size}`)
+}, 30000)
+
+app.get('/api/ships', async (_req, res) => {
+  const ships = Array.from(shipCache.values())
+  res.set('Cache-Control', 'public, max-age=10')
+  res.json({ ships, source: 'aisstream.io', count: ships.length })
 })
 
 // --- API Proxy: Earthquakes (USGS) ---

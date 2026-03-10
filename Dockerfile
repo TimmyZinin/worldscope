@@ -21,7 +21,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/package*.json ./
 
-RUN npm ci --omit=dev && npm install express cors tsx
+RUN npm ci --omit=dev && npm install express cors tsx ws
 
 EXPOSE 3090
 
