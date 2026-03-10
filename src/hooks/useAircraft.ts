@@ -44,7 +44,12 @@ export function useAircraft(enabled: boolean) {
         lomax: String(viewport.longitude + padding),
       })
       const res = await fetch(`${API_BASE}/api/aircraft?${params}`)
-      if (!res.ok) throw new Error(`OpenSky error: ${res.status}`)
+      if (!res.ok) {
+        // Server caches and returns stale data on 429, so check for states
+        const errorData = await res.json().catch(() => null)
+        if (errorData?.states) return errorData.states.map((s: unknown[]) => toMapEntity(parseAircraftState(s))).filter(Boolean) as MapEntity[]
+        throw new Error(`OpenSky error: ${res.status}`)
+      }
       const data = await res.json()
       if (!data.states) return []
       return data.states
@@ -52,8 +57,8 @@ export function useAircraft(enabled: boolean) {
         .filter(Boolean) as MapEntity[]
     },
     enabled,
-    refetchInterval: 10000,
-    staleTime: 5000,
-    retry: 2,
+    refetchInterval: 15000,
+    staleTime: 10000,
+    retry: 1,
   })
 }

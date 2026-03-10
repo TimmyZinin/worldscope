@@ -14,7 +14,7 @@ function getInitialLayers(): Record<string, boolean> {
     aircraft: true,
     ships: true,
     cameras: true,
-    earthquakes: false,
+    earthquakes: true,
     iss: true,
     weather: false,
   }

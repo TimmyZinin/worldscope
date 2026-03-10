@@ -11,7 +11,6 @@ export function useWebcams(enabled: boolean) {
   return useQuery({
     queryKey: ['webcams', Math.round(viewport.latitude * 10), Math.round(viewport.longitude * 10)],
     queryFn: async (): Promise<MapEntity[]> => {
-      if (!API_BASE) return []
       const params = new URLSearchParams({
         north: String(viewport.latitude + padding),
         south: String(viewport.latitude - padding),

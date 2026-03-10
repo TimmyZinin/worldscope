@@ -1,27 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
-import { useViewport } from './useViewport'
 import { getShipType, NAV_STATUS } from '../types/ship'
 import type { MapEntity } from '../types/common'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
 export function useShips(enabled: boolean) {
-  const { viewport } = useViewport()
-  const padding = Math.max(1, 5 / viewport.zoom)
-
   return useQuery({
-    queryKey: ['ships', Math.round(viewport.latitude), Math.round(viewport.longitude)],
+    queryKey: ['ships'],
     queryFn: async (): Promise<MapEntity[]> => {
-      if (!API_BASE) return []
-      const params = new URLSearchParams({
-        lamin: String(viewport.latitude - padding),
-        lomin: String(viewport.longitude - padding),
-        lamax: String(viewport.latitude + padding),
-        lomax: String(viewport.longitude + padding),
-      })
-      const res = await fetch(`${API_BASE}/api/ships?${params}`)
+      const res = await fetch(`${API_BASE}/api/ships`)
       if (!res.ok) return []
       const data = await res.json()
+      if (!data.ships || !data.ships.length) return []
       return data.ships.map((s: {
         mmsi: string; name: string; latitude: number; longitude: number;
         heading: number; sog: number; shipType: number; navStatus: number;
@@ -35,7 +25,7 @@ export function useShips(enabled: boolean) {
           latitude: s.latitude,
           longitude: s.longitude,
           heading: s.heading,
-          name: s.name || s.mmsi,
+          name: s.name || `MMSI ${s.mmsi}`,
           speed: s.sog * 0.514444,
           altitude: null,
           lastUpdated: Math.floor(s.lastUpdated / 1000),
@@ -54,7 +44,7 @@ export function useShips(enabled: boolean) {
       })
     },
     enabled,
-    refetchInterval: 10000,
-    staleTime: 5000,
+    refetchInterval: 30000,
+    staleTime: 15000,
   })
 }
