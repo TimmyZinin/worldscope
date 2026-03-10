@@ -93,27 +93,30 @@ export default function ObjectDetail({ entity, onClose }: Props) {
         </button>
       </div>
 
-      {/* Webcam preview: image if available, iframe embed otherwise */}
+      {/* Webcam preview: image if available, placeholder with link otherwise */}
       {entity.type === 'webcam' && (
         <div className="px-4 pt-3">
           {entity.meta.preview ? (
-            <img
-              src={entity.meta.preview as string}
-              alt={entity.name}
-              className="w-full h-36 object-cover rounded-xl shadow-sm"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-            />
-          ) : entity.meta.playerUrl ? (
-            <div className="relative w-full h-36 rounded-xl shadow-sm overflow-hidden bg-gray-100">
-              <iframe
-                src={entity.meta.playerUrl as string}
-                className="w-full h-full border-0"
-                loading="lazy"
-                sandbox="allow-scripts allow-same-origin"
-                title={entity.name}
+            <a href={entity.meta.playerUrl as string || '#'} target="_blank" rel="noopener noreferrer" className="block relative">
+              <img
+                src={entity.meta.preview as string}
+                alt={entity.name}
+                className="w-full h-36 object-cover rounded-xl shadow-sm"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
               />
               <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">LIVE</div>
-            </div>
+            </a>
+          ) : entity.meta.playerUrl ? (
+            <a
+              href={entity.meta.playerUrl as string}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col items-center justify-center w-full h-36 rounded-xl shadow-sm bg-gradient-to-br from-green-50 to-green-100 border border-green-200 hover:from-green-100 hover:to-green-200 transition-colors"
+            >
+              <Camera size={32} className="text-green-400 mb-2" />
+              <span className="text-xs font-medium text-green-600">Watch live video</span>
+              <span className="text-[10px] text-green-400 mt-0.5">Opens in new tab</span>
+            </a>
           ) : null}
         </div>
       )}

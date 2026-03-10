@@ -87,6 +87,7 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
   const { layers, setCount } = useLayerVisibility()
   const [currentTime, setCurrentTime] = useState(Date.now())
   const isDragging = useRef(false)
+  const pointerStart = useRef<{ x: number; y: number } | null>(null)
 
   const { data: aircraft = [] } = useAircraft(layers.aircraft)
   const { data: earthquakes = [] } = useEarthquakes(layers.earthquakes)
@@ -137,17 +138,62 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
   zoomRef.current = viewport.zoom
   onEntityClickRef.current = onEntityClick
 
-  // Track mouse drag to distinguish click from pan
+  // Track mouse drag to distinguish click from pan (with threshold for mobile)
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const onDown = () => { isDragging.current = false }
-    const onMoveEvt = () => { isDragging.current = true }
+    const DRAG_THRESHOLD = 8 // px — ignore small finger movements on mobile
+    const onDown = (e: PointerEvent) => {
+      isDragging.current = false
+      pointerStart.current = { x: e.clientX, y: e.clientY }
+    }
+    const onMoveEvt = (e: PointerEvent) => {
+      if (!pointerStart.current) return
+      const dx = e.clientX - pointerStart.current.x
+      const dy = e.clientY - pointerStart.current.y
+      if (dx * dx + dy * dy > DRAG_THRESHOLD * DRAG_THRESHOLD) {
+        isDragging.current = true
+      }
+    }
     el.addEventListener('pointerdown', onDown)
     el.addEventListener('pointermove', onMoveEvt)
     return () => {
       el.removeEventListener('pointerdown', onDown)
       el.removeEventListener('pointermove', onMoveEvt)
+    }
+  }, [])
+
+  // Dynamic cursor: pointer only when hovering near an entity (desktop only)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    let rafId = 0
+    const onMouseMove = (e: MouseEvent) => {
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        const map = mapRef.current?.getMap()
+        if (!map) return
+        const canvas = map.getCanvas()
+        const rect = canvas.getBoundingClientRect()
+        const x = e.clientX - rect.left
+        const y = e.clientY - rect.top
+        if (x < 0 || y < 0 || x > rect.width || y > rect.height) return
+        const lngLat = map.unproject([x, y])
+        const nearest = findNearestEntity(
+          { lng: lngLat.lng, lat: lngLat.lat },
+          entitiesRef.current,
+          zoomRef.current
+        )
+        const canvasContainer = canvas.parentElement
+        if (canvasContainer) {
+          canvasContainer.classList.toggle('entity-hover', nearest !== null)
+        }
+      })
+    }
+    el.addEventListener('mousemove', onMouseMove)
+    return () => {
+      el.removeEventListener('mousemove', onMouseMove)
+      cancelAnimationFrame(rafId)
     }
   }, [])
 
@@ -316,7 +362,7 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
     <div
       ref={containerRef}
       onClick={handleClick}
-      style={{ width: '100%', height: '100%', cursor: 'pointer' }}
+      style={{ width: '100%', height: '100%' }}
     >
       <Map
         ref={mapRef}

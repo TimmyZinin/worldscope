@@ -39,9 +39,9 @@
   animation: slide-up 0.4s ease-out;
 }
 
-/* Cursor override for map canvas */
-.maplibregl-canvas-container,
-.maplibregl-canvas {
+/* Dynamic cursor for map — default grab, pointer when hovering entities */
+.maplibregl-canvas-container.entity-hover,
+.maplibregl-canvas-container.entity-hover .maplibregl-canvas {
   cursor: pointer !important;
 }
 
