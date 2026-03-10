@@ -3,8 +3,7 @@ import { useViewport } from './useViewport'
 import { getShipType, NAV_STATUS } from '../types/ship'
 import type { MapEntity } from '../types/common'
 
-// Ships API — will use RUVDS backend when deployed
-const SHIPS_API = import.meta.env.VITE_SHIPS_API_URL || ''
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 export function useShips(enabled: boolean) {
   const { viewport } = useViewport()
@@ -13,14 +12,14 @@ export function useShips(enabled: boolean) {
   return useQuery({
     queryKey: ['ships', Math.round(viewport.latitude), Math.round(viewport.longitude)],
     queryFn: async (): Promise<MapEntity[]> => {
-      if (!SHIPS_API) return [] // No ship API configured yet
+      if (!API_BASE) return []
       const params = new URLSearchParams({
         lamin: String(viewport.latitude - padding),
         lomin: String(viewport.longitude - padding),
         lamax: String(viewport.latitude + padding),
         lomax: String(viewport.longitude + padding),
       })
-      const res = await fetch(`${SHIPS_API}/api/ships?${params}`)
+      const res = await fetch(`${API_BASE}/api/ships?${params}`)
       if (!res.ok) return []
       const data = await res.json()
       return data.ships.map((s: {
@@ -54,7 +53,7 @@ export function useShips(enabled: boolean) {
         }
       })
     },
-    enabled: enabled && !!SHIPS_API,
+    enabled,
     refetchInterval: 10000,
     staleTime: 5000,
   })

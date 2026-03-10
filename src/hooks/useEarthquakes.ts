@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { MapEntity } from '../types/common'
 
-const USGS_URL = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson'
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 function magnitudeToColor(mag: number): string {
   if (mag >= 6) return '#F44336'
@@ -14,7 +14,7 @@ export function useEarthquakes(enabled: boolean) {
   return useQuery({
     queryKey: ['earthquakes'],
     queryFn: async (): Promise<MapEntity[]> => {
-      const res = await fetch(USGS_URL)
+      const res = await fetch(`${API_BASE}/api/earthquakes`)
       if (!res.ok) throw new Error(`USGS error: ${res.status}`)
       const data = await res.json()
       return data.features.map((f: {

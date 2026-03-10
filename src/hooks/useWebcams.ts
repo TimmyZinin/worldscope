@@ -2,8 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useViewport } from './useViewport'
 import type { MapEntity } from '../types/common'
 
-// Webcams API — will use Vercel Edge Function when deployed
-const WEBCAMS_API = import.meta.env.VITE_WEBCAMS_API_URL || ''
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 export function useWebcams(enabled: boolean) {
   const { viewport } = useViewport()
@@ -12,14 +11,14 @@ export function useWebcams(enabled: boolean) {
   return useQuery({
     queryKey: ['webcams', Math.round(viewport.latitude * 10), Math.round(viewport.longitude * 10)],
     queryFn: async (): Promise<MapEntity[]> => {
-      if (!WEBCAMS_API) return []
+      if (!API_BASE) return []
       const params = new URLSearchParams({
         north: String(viewport.latitude + padding),
         south: String(viewport.latitude - padding),
         east: String(viewport.longitude + padding),
         west: String(viewport.longitude - padding),
       })
-      const res = await fetch(`${WEBCAMS_API}?${params}`)
+      const res = await fetch(`${API_BASE}/api/webcams?${params}`)
       if (!res.ok) return []
       const data = await res.json()
       return (data.webcams || []).map((w: {
@@ -49,7 +48,7 @@ export function useWebcams(enabled: boolean) {
         },
       }))
     },
-    enabled: enabled && !!WEBCAMS_API,
+    enabled,
     refetchInterval: 300000,
     staleTime: 120000,
   })

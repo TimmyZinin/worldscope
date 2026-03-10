@@ -1,0 +1,17 @@
+services:
+  worldscope:
+    build: .
+    container_name: worldscope
+    restart: unless-stopped
+    ports:
+      - "3090:3090"
+    env_file:
+      - .env
+    environment:
+      - PORT=3090
+      - NODE_ENV=production
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

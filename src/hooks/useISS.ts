@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import type { MapEntity } from '../types/common'
 
-const ISS_URL = 'https://api.wheretheiss.at/v1/satellites/25544'
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 export function useISS(enabled: boolean) {
   return useQuery({
     queryKey: ['iss'],
     queryFn: async (): Promise<MapEntity[]> => {
-      const res = await fetch(ISS_URL)
+      const res = await fetch(`${API_BASE}/api/iss`)
       if (!res.ok) throw new Error(`ISS API error: ${res.status}`)
       const d = await res.json()
       return [{

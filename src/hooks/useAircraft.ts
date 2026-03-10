@@ -3,7 +3,7 @@ import { useViewport } from './useViewport'
 import { parseAircraftState, type AircraftState } from '../types/aircraft'
 import type { MapEntity } from '../types/common'
 
-const OPENSKY_URL = 'https://opensky-network.org/api/states/all'
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 function toMapEntity(a: AircraftState): MapEntity | null {
   if (a.latitude === null || a.longitude === null) return null
@@ -43,7 +43,7 @@ export function useAircraft(enabled: boolean) {
         lamax: String(viewport.latitude + padding),
         lomax: String(viewport.longitude + padding),
       })
-      const res = await fetch(`${OPENSKY_URL}?${params}`)
+      const res = await fetch(`${API_BASE}/api/aircraft?${params}`)
       if (!res.ok) throw new Error(`OpenSky error: ${res.status}`)
       const data = await res.json()
       if (!data.states) return []
