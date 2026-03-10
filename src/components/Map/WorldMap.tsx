@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import Map, { NavigationControl, GeolocateControl, type MapRef, type ViewStateChangeEvent } from 'react-map-gl/maplibre'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Map, { NavigationControl, GeolocateControl, type MapRef, type ViewStateChangeEvent, type MapLayerMouseEvent } from 'react-map-gl/maplibre'
 import { MapboxOverlay } from '@deck.gl/mapbox'
 import { useControl } from 'react-map-gl/maplibre'
 import { ScatterplotLayer } from '@deck.gl/layers'
@@ -17,13 +17,36 @@ const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function DeckGLOverlay(props: { layers: any[] }) {
-  const overlay = useControl(() => new MapboxOverlay({ layers: [] }))
+  const overlay = useControl(() => new MapboxOverlay({ interleaved: true }))
   overlay.setProps({ layers: props.layers })
   return null
 }
 
 interface WorldMapProps {
   onEntityClick: (entity: MapEntity | null) => void
+}
+
+// Find nearest entity to clicked coordinates within a pixel threshold
+function findNearestEntity(
+  lngLat: { lng: number; lat: number },
+  entities: MapEntity[],
+  zoom: number
+): MapEntity | null {
+  // Threshold in degrees — shrinks as zoom increases
+  const threshold = 2 / Math.pow(2, zoom - 2)
+  let nearest: MapEntity | null = null
+  let minDist = threshold
+
+  for (const e of entities) {
+    const dlat = e.latitude - lngLat.lat
+    const dlng = e.longitude - lngLat.lng
+    const dist = Math.sqrt(dlat * dlat + dlng * dlng)
+    if (dist < minDist) {
+      minDist = dist
+      nearest = e
+    }
+  }
+  return nearest
 }
 
 export default function WorldMap({ onEntityClick }: WorldMapProps) {
@@ -65,6 +88,26 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
     [setViewport]
   )
 
+  // All visible entities combined for click detection
+  const allEntities = useMemo(() => {
+    const all: MapEntity[] = []
+    if (layers.aircraft) all.push(...aircraft)
+    if (layers.ships) all.push(...ships)
+    if (layers.cameras) all.push(...webcams)
+    if (layers.earthquakes) all.push(...earthquakes)
+    if (layers.iss) all.push(...iss)
+    return all
+  }, [layers, aircraft, ships, webcams, earthquakes, iss])
+
+  // Handle map click — find nearest entity
+  const onMapClick = useCallback(
+    (e: MapLayerMouseEvent) => {
+      const nearest = findNearestEntity(e.lngLat, allEntities, viewport.zoom)
+      onEntityClick(nearest)
+    },
+    [allEntities, viewport.zoom, onEntityClick]
+  )
+
   const deckLayers = []
 
   // Aircraft layer
@@ -74,22 +117,18 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
         id: 'aircraft-layer',
         data: aircraft,
         getPosition: (d: MapEntity) => [d.longitude, d.latitude],
-        getRadius: (d: MapEntity) => (d.meta.onGround ? 3 : 5),
+        getRadius: (d: MapEntity) => (d.meta.onGround ? 4 : 6),
         getFillColor: (d: MapEntity) => {
           if (d.meta.onGround) return [158, 158, 158, 200]
           const alt = d.altitude || 0
-          if (alt > 10000) return [33, 150, 243, 220]
-          if (alt > 5000) return [255, 152, 0, 220]
-          return [76, 175, 80, 220]
+          if (alt > 10000) return [33, 150, 243, 230]
+          if (alt > 5000) return [255, 152, 0, 230]
+          return [76, 175, 80, 230]
         },
-        getLineColor: [255, 255, 255, 180],
-        lineWidthMinPixels: 1,
-        radiusMinPixels: 3,
-        radiusMaxPixels: 8,
-        pickable: true,
-        onClick: ({ object }: { object?: MapEntity }) => {
-          if (object) onEntityClick(object)
-        },
+        getLineColor: [255, 255, 255, 200],
+        lineWidthMinPixels: 1.5,
+        radiusMinPixels: 4,
+        radiusMaxPixels: 10,
         updateTriggers: {
           getPosition: aircraft.map((a) => `${a.id}:${a.latitude}:${a.longitude}`).join(','),
         },
@@ -104,22 +143,18 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
         id: 'ships-layer',
         data: ships,
         getPosition: (d: MapEntity) => [d.longitude, d.latitude],
-        getRadius: 6,
+        getRadius: 8,
         getFillColor: (d: MapEntity) => {
           const hex = d.color
           const r = parseInt(hex.slice(1, 3), 16)
           const g = parseInt(hex.slice(3, 5), 16)
           const b = parseInt(hex.slice(5, 7), 16)
-          return [r, g, b, 200]
+          return [r, g, b, 220]
         },
-        getLineColor: [255, 255, 255, 150],
-        lineWidthMinPixels: 1,
-        radiusMinPixels: 4,
-        radiusMaxPixels: 10,
-        pickable: true,
-        onClick: ({ object }: { object?: MapEntity }) => {
-          if (object) onEntityClick(object)
-        },
+        getLineColor: [255, 255, 255, 180],
+        lineWidthMinPixels: 1.5,
+        radiusMinPixels: 5,
+        radiusMaxPixels: 12,
       })
     )
   }
@@ -137,10 +172,6 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
         lineWidthMinPixels: 2,
         radiusMinPixels: 5,
         radiusMaxPixels: 12,
-        pickable: true,
-        onClick: ({ object }: { object?: MapEntity }) => {
-          if (object) onEntityClick(object)
-        },
       })
     )
   }
@@ -155,14 +186,14 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
         getPosition: (d: MapEntity) => [d.longitude, d.latitude],
         getRadius: (d: MapEntity) => {
           const mag = (d.meta.magnitude as number) || 1
-          return mag * 4 * pulse
+          return mag * 5 * pulse
         },
         getFillColor: (d: MapEntity) => {
           const hex = d.color
           const r = parseInt(hex.slice(1, 3), 16)
           const g = parseInt(hex.slice(3, 5), 16)
           const b = parseInt(hex.slice(5, 7), 16)
-          return [r, g, b, 140]
+          return [r, g, b, 160]
         },
         getLineColor: (d: MapEntity) => {
           const hex = d.color
@@ -172,12 +203,8 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
           return [r, g, b, 255]
         },
         lineWidthMinPixels: 2,
-        radiusMinPixels: 4,
-        radiusMaxPixels: 30,
-        pickable: true,
-        onClick: ({ object }: { object?: MapEntity }) => {
-          if (object) onEntityClick(object)
-        },
+        radiusMinPixels: 5,
+        radiusMaxPixels: 35,
         updateTriggers: {
           getRadius: currentTime,
         },
@@ -209,10 +236,6 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
         lineWidthMinPixels: 2,
         radiusMinPixels: 6,
         radiusMaxPixels: 12,
-        pickable: true,
-        onClick: ({ object }: { object?: MapEntity }) => {
-          if (object) onEntityClick(object)
-        },
         updateTriggers: {
           getPosition: iss.map((i) => `${i.latitude}:${i.longitude}`).join(','),
         },
@@ -225,11 +248,13 @@ export default function WorldMap({ onEntityClick }: WorldMapProps) {
       ref={mapRef}
       {...viewport}
       onMove={onMove}
+      onClick={onMapClick}
       mapStyle={MAP_STYLE}
       style={{ width: '100%', height: '100%' }}
       attributionControl={false}
       maxZoom={18}
       minZoom={2}
+      cursor="pointer"
     >
       <DeckGLOverlay layers={deckLayers} />
       <NavigationControl position="top-right" />

@@ -29,7 +29,7 @@ export function decodeState(
   hash: string
 ): { viewport: Partial<Viewport>; layers: string[]; locale?: Locale } | null {
   const match = hash.match(
-    /#@([\d.-]+),([\d.-]+),([\d.]+)z\/([\w]+)(?:\/([\w]+))?/
+    /#@([\d.-]+),([\d.-]+),([\d.]+)z(?:\/([\w]+))?(?:\/([\w]+))?/
   )
   if (!match) return null
   return {
@@ -39,9 +39,8 @@ export function decodeState(
       zoom: +match[3],
     },
     layers: match[4]
-      .split('')
-      .map((c) => LAYER_MAP[c])
-      .filter(Boolean),
+      ? match[4].split('').map((c) => LAYER_MAP[c]).filter(Boolean)
+      : [],
     locale: match[5] as Locale | undefined,
   }
 }

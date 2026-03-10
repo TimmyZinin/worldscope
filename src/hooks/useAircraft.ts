@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { useViewport } from './useViewport'
 import { parseAircraftState, type AircraftState } from '../types/aircraft'
 import type { MapEntity } from '../types/common'
 
@@ -31,25 +30,11 @@ function toMapEntity(a: AircraftState): MapEntity | null {
 }
 
 export function useAircraft(enabled: boolean) {
-  const { viewport } = useViewport()
-  const padding = Math.max(1, 10 / viewport.zoom)
-
   return useQuery({
-    queryKey: ['aircraft', Math.round(viewport.latitude), Math.round(viewport.longitude), Math.round(viewport.zoom)],
+    queryKey: ['aircraft'],
     queryFn: async (): Promise<MapEntity[]> => {
-      const params = new URLSearchParams({
-        lamin: String(viewport.latitude - padding),
-        lomin: String(viewport.longitude - padding),
-        lamax: String(viewport.latitude + padding),
-        lomax: String(viewport.longitude + padding),
-      })
-      const res = await fetch(`${API_BASE}/api/aircraft?${params}`)
-      if (!res.ok) {
-        // Server caches and returns stale data on 429, so check for states
-        const errorData = await res.json().catch(() => null)
-        if (errorData?.states) return errorData.states.map((s: unknown[]) => toMapEntity(parseAircraftState(s))).filter(Boolean) as MapEntity[]
-        throw new Error(`OpenSky error: ${res.status}`)
-      }
+      const res = await fetch(`${API_BASE}/api/aircraft`)
+      if (!res.ok) return []
       const data = await res.json()
       if (!data.states) return []
       return data.states
@@ -57,8 +42,8 @@ export function useAircraft(enabled: boolean) {
         .filter(Boolean) as MapEntity[]
     },
     enabled,
-    refetchInterval: 15000,
-    staleTime: 10000,
+    refetchInterval: 60000,
+    staleTime: 45000,
     retry: 1,
   })
 }
