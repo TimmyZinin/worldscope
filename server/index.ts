@@ -190,7 +190,10 @@ function connectAISStream(): void {
   }
 
   console.log('[Ships] Connecting to AISStream.io...')
-  const ws = new WebSocket('wss://stream.aisstream.io/v0/stream')
+  const ws = new WebSocket('wss://stream.aisstream.io/v0/stream', {
+    handshakeTimeout: 30000,
+    headers: { 'User-Agent': 'WorldScope/1.0' },
+  })
 
   ws.on('open', () => {
     console.log('[Ships] AISStream connected, subscribing...')
@@ -252,15 +255,17 @@ function connectAISStream(): void {
     } catch { /* ignore parse errors */ }
   })
 
-  ws.on('close', () => {
-    console.log('[Ships] AISStream disconnected, reconnecting in 10s...')
+  ws.on('close', (code) => {
+    console.log(`[Ships] AISStream disconnected (code ${code}), reconnecting in 5s...`)
     aisWs = null
     if (aisReconnectTimer) clearTimeout(aisReconnectTimer)
-    aisReconnectTimer = setTimeout(connectAISStream, 10000)
+    aisReconnectTimer = setTimeout(connectAISStream, 5000)
   })
 
   ws.on('error', (err) => {
     console.error('[Ships] AISStream error:', err.message)
+    // Force reconnect on error
+    try { ws.close() } catch { /* ignore */ }
   })
 
   aisWs = ws
