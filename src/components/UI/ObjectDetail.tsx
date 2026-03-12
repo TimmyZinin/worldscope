@@ -97,7 +97,7 @@ export default function ObjectDetail({ entity, onClose }: Props) {
       {entity.type === 'webcam' && (
         <div className="px-4 pt-3">
           {entity.meta.preview ? (
-            <a href={entity.meta.playerUrl as string || '#'} target="_blank" rel="noopener noreferrer" className="block relative">
+            <a href={`${entity.meta.playerUrl as string || '#'}?utm_source=worldscope&utm_medium=cta`} target="_blank" rel="noopener noreferrer" className="block relative">
               <img
                 src={entity.meta.preview as string}
                 alt={entity.name}
@@ -237,7 +237,7 @@ export default function ObjectDetail({ entity, onClose }: Props) {
         )}
         {entity.type === 'ship' && (
           <a
-            href={`https://www.marinetraffic.com/en/ais/details/ships/mmsi:${entity.meta.mmsi || entity.id}`}
+            href={`https://www.marinetraffic.com/en/ais/details/ships/mmsi:${entity.meta.mmsi || entity.id}?utm_source=worldscope&utm_medium=cta`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-blue-500 text-white rounded-xl text-xs font-medium hover:bg-blue-600 transition-colors"
@@ -247,7 +247,7 @@ export default function ObjectDetail({ entity, onClose }: Props) {
         )}
         {entity.type === 'aircraft' && (
           <a
-            href={`https://www.flightradar24.com/${entity.name.trim()}`}
+            href={`https://www.flightradar24.com/${entity.name.trim()}?utm_source=worldscope&utm_medium=cta`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-orange-500 text-white rounded-xl text-xs font-medium hover:bg-orange-600 transition-colors"
@@ -257,7 +257,7 @@ export default function ObjectDetail({ entity, onClose }: Props) {
         )}
         {entity.type === 'earthquake' && (
           <a
-            href={`https://earthquake.usgs.gov/earthquakes/eventpage/${entity.id.replace('eq-', '')}`}
+            href={`https://earthquake.usgs.gov/earthquakes/eventpage/${entity.id.replace('eq-', '')}?utm_source=worldscope&utm_medium=cta`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-red-500 text-white rounded-xl text-xs font-medium hover:bg-red-600 transition-colors"
