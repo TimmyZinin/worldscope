@@ -16,6 +16,7 @@ export const ar = {
   ctaSubtitle2: 'الفجوة تتسع كل أسبوع. تصرّف الآن.',
   ctaTitle3: 'هذا الموقع بأكمله بناه شخص واحد بالذكاء الاصطناعي. تريد نفس الشيء؟',
   ctaSubtitle3: 'سأريك كيف. بدون كلام فارغ.',
+  ctaMapBanner: 'هل تريد نظاماً كهذا لعملك؟', ctaOrderConsultation: 'احجز استشارة →',
   builtBy: 'صنع بواسطة Tim Zinin', loading: 'جاري التحميل...', error: 'خطأ في تحميل البيانات',
   retry: 'إعادة المحاولة', close: 'إغلاق', shareCopied: 'تم نسخ الرابط! أرسله لصديق',
   knots: 'عقدة', metersPerSec: 'م/ث', kmPerHour: 'كم/س', meters: 'م',

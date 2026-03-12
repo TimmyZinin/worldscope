@@ -13,6 +13,7 @@ export const de = {
   ctaTagline: 'KI · Automatisierung · Web3 · Ab $500/Std',
   ctaTitle2: 'Deine Konkurrenten nutzen bereits KI-Agenten. Du nicht.', ctaSubtitle2: 'Die Lücke wird jede Woche größer. Handle jetzt.',
   ctaTitle3: 'Diese gesamte Website wurde von einer Person mit KI gebaut. Willst du das auch?', ctaSubtitle3: 'Ich zeig dir wie. Ohne Geschwafel.',
+  ctaMapBanner: 'Willst du ein solches System für dein Business?', ctaOrderConsultation: 'Beratung buchen →',
   builtBy: 'Gebaut von Tim Zinin', loading: 'Lädt...', error: 'Fehler beim Laden',
   retry: 'Erneut versuchen', close: 'Schließen', shareCopied: 'Link kopiert! Schick ihn einem Freund',
   knots: 'kn', metersPerSec: 'm/s', kmPerHour: 'km/h', meters: 'm',

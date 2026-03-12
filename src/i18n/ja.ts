@@ -13,6 +13,7 @@ export const ja = {
   ctaTagline: 'AI · 自動化 · Web3 · $500/時間〜',
   ctaTitle2: '競合他社はすでにAIエージェントを使っています。あなたはまだです。', ctaSubtitle2: 'その差は毎週広がっています。今すぐ行動を。',
   ctaTitle3: 'このサイト全体を一人がAIで作りました。同じことをしたいですか？', ctaSubtitle3: '方法を教えます。余計な話なし。',
+  ctaMapBanner: 'ビジネス用にこのようなシステムをいかがですか？', ctaOrderConsultation: '相談する →',
   builtBy: 'Tim Zinin 制作', loading: '読み込み中...', error: 'データの読み込みエラー',
   retry: '再試行', close: '閉じる', shareCopied: 'リンクをコピーしました！友達に送ろう',
   knots: 'ノット', metersPerSec: 'm/s', kmPerHour: 'km/h', meters: 'm',

@@ -13,6 +13,7 @@ export const zh = {
   ctaTagline: 'AI · 自动化 · Web3 · $500/小时起',
   ctaTitle2: '你的竞争对手已经在用AI代理了。你还没有。', ctaSubtitle2: '差距每周都在扩大。现在就行动。',
   ctaTitle3: '这个网站是一个人用AI做的。想要同样的效果吗？', ctaSubtitle3: '我来教你。不废话。',
+  ctaMapBanner: '想要这样的系统用于您的业务？', ctaOrderConsultation: '预约咨询 →',
   builtBy: 'Tim Zinin 制作', loading: '加载中...', error: '数据加载错误',
   retry: '重试', close: '关闭', shareCopied: '链接已复制！发给朋友吧',
   knots: '节', metersPerSec: '米/秒', kmPerHour: '公里/时', meters: '米',

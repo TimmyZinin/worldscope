@@ -16,6 +16,7 @@ export const hi = {
   ctaSubtitle2: 'यह अंतर हर हफ्ते बढ़ रहा है। अभी कदम उठाओ।',
   ctaTitle3: 'यह पूरी साइट एक व्यक्ति ने AI से बनाई। चाहते हो वैसा?',
   ctaSubtitle3: 'दिखाता हूँ कैसे। बिना बकवास।',
+  ctaMapBanner: 'अपने बिजनेस के लिए ऐसी सिस्टम चाहते हो?', ctaOrderConsultation: 'कंसल्टेशन बुक करो →',
   builtBy: 'Tim Zinin द्वारा निर्मित', loading: 'लोड हो रहा है...', error: 'डेटा लोड करने में त्रुटि',
   retry: 'पुनः प्रयास', close: 'बंद करें', shareCopied: 'लिंक कॉपी हो गया! दोस्त को भेजें',
   knots: 'नॉट', metersPerSec: 'मी/से', kmPerHour: 'किमी/घं', meters: 'मी',

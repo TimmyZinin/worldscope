@@ -13,6 +13,7 @@ export const fr = {
   ctaTagline: 'IA · Automatisation · Web3 · À partir de 500$/hr',
   ctaTitle2: "Tes concurrents utilisent déjà des agents IA. Pas toi.", ctaSubtitle2: "L'écart se creuse chaque semaine. Agis maintenant.",
   ctaTitle3: "Ce site a été entièrement construit par une seule personne avec l'IA. Tu veux pareil ?", ctaSubtitle3: 'Je te montre comment. Sans blabla.',
+  ctaMapBanner: 'Vous voulez un tel système pour votre entreprise?', ctaOrderConsultation: 'Réserver une consultation →',
   builtBy: 'Fait par Tim Zinin', loading: 'Chargement...', error: 'Erreur de chargement',
   retry: 'Réessayer', close: 'Fermer', shareCopied: 'Lien copié ! Envoie-le à un ami',
   knots: 'nds', metersPerSec: 'm/s', kmPerHour: 'km/h', meters: 'm',

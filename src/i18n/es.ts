@@ -24,6 +24,7 @@ export const es = {
   ctaSubtitle2: 'Esa brecha crece cada semana. Actúa ahora.',
   ctaTitle3: 'Este sitio fue construido por una persona con IA. ¿Quieres lo mismo?',
   ctaSubtitle3: 'Te muestro cómo. Sin rodeos.',
+  ctaMapBanner: '¿Quieres un sistema así para tu negocio?', ctaOrderConsultation: 'Reservar consulta →',
   builtBy: 'Hecho por Tim Zinin', loading: 'Cargando...', error: 'Error al cargar datos',
   retry: 'Reintentar', close: 'Cerrar', shareCopied: '¡Enlace copiado! Envíalo a un amigo',
   knots: 'kn', metersPerSec: 'm/s', kmPerHour: 'km/h', meters: 'm',

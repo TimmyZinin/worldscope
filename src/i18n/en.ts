@@ -31,6 +31,8 @@ export const en = {
   ctaSubtitle2: 'That gap gets wider every week. Fix it now.',
   ctaTitle3: 'This entire site was built by one person with AI. Want the same?',
   ctaSubtitle3: "I'll show you how. No BS, no slides.",
+  ctaMapBanner: 'Want a system like this for your business?',
+  ctaOrderConsultation: 'Book a consultation →',
   builtBy: 'Built by Tim Zinin',
   loading: 'Loading...',
   error: 'Error loading data',

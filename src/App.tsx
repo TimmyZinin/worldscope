@@ -8,6 +8,7 @@ import ShareButton from './components/UI/ShareButton'
 import LanguageSwitcher from './components/I18n/LanguageSwitcher'
 import CTABadge from './components/CTA/CTABadge'
 import CTAPopup from './components/CTA/CTAPopup'
+import MapCTABanner from './components/CTA/MapCTABanner'
 import type { MapEntity } from './types/common'
 import { Globe } from 'lucide-react'
 
@@ -73,6 +74,7 @@ function AppContent() {
       {/* CTA */}
       <CTABadge />
       <CTAPopup />
+      <MapCTABanner />
 
       {/* Attribution */}
       <div className="absolute bottom-8 right-2 z-30 text-[9px] text-gray-400 max-w-[200px] text-right leading-tight">
