@@ -5,10 +5,10 @@ import LayerPanel from './components/UI/LayerPanel'
 import StatsBar from './components/UI/StatsBar'
 import ObjectDetail from './components/UI/ObjectDetail'
 import ShareButton from './components/UI/ShareButton'
+import Footer from './components/UI/Footer'
 import LanguageSwitcher from './components/I18n/LanguageSwitcher'
 import CTABadge from './components/CTA/CTABadge'
 import CTAPopup from './components/CTA/CTAPopup'
-import MapCTABanner from './components/CTA/MapCTABanner'
 import type { MapEntity } from './types/common'
 import { Globe } from 'lucide-react'
 
@@ -74,12 +74,14 @@ function AppContent() {
       {/* CTA */}
       <CTABadge />
       <CTAPopup />
-      <MapCTABanner />
 
       {/* Attribution */}
       <div className="absolute bottom-8 right-2 z-30 text-[9px] text-gray-400 max-w-[200px] text-right leading-tight">
         Data: OpenSky · AISStream · Windy · USGS · © OpenStreetMap
       </div>
+
+      {/* Footer */}
+      <Footer />
     </div>
   )
 }
