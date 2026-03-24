@@ -1,3 +1,4 @@
+# prebuild-gc
 services:
   worldscope:
     build: .

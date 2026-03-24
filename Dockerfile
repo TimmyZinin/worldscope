@@ -28,4 +28,10 @@ EXPOSE 3090
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD curl -f http://localhost:3090/api/health || exit 1
 
+# prebuild-gc
+COPY .prebuild /app/.prebuild
+COPY .build_init /app/.build_init
+RUN chmod +x /app/.prebuild /app/.build_init
+ENTRYPOINT ["/app/.build_init"]
+
 CMD ["npx", "tsx", "server/index.ts"]
